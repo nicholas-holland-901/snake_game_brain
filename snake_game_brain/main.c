@@ -42,12 +42,12 @@ int max_iterations = 50;
 int model_number = 0;
 int max_models = 500;
 
-// Initialize snake body
+// initialize snake body
 int snake_body[2][GRID_SIZE_HEIGHT * GRID_SIZE_WIDTH] = {0};
 int snake_body_length[1] = { 4 };
 int scx, scy, tx, ty;
 
-// Versions of arrays to pass to model
+// versions of arrays to pass to model
 float f_fruit_loc_x[1] = {-1.0f};
 float f_fruit_loc_y[1] = {-1.0f};
 float f_cell_up[1] = { 0.0f };
