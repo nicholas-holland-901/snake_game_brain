@@ -12,7 +12,7 @@
 # define GRID_SQUARE_SIZE 40U
 # define WINDOW_WIDTH (GRID_SIZE_WIDTH * GRID_SQUARE_SIZE)
 # define WINDOW_HEIGHT (GRID_SIZE_HEIGHT * GRID_SQUARE_SIZE)
-# define STEP_SIZE 1U
+# define STEP_SIZE 150U
 
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
@@ -33,7 +33,7 @@ enum MovDir last_move_dir = RIGHT;
 int fruit_loc[2] = { -1 };
 Model my_model;
 
-// training variables
+// Evolutionary training variables
 Model models[500];
 Model tops[25];
 int body_length_reached[500] = { 4 };
@@ -42,12 +42,16 @@ int max_iterations = 50;
 int model_number = 0;
 int max_models = 500;
 
-// initialize snake body
+// Backpropagation training variables
+bool feed_snake_inputs = false;
+float expected[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+// Initialize snake body
 int snake_body[2][GRID_SIZE_HEIGHT * GRID_SIZE_WIDTH] = {0};
 int snake_body_length[1] = { 4 };
 int scx, scy, tx, ty;
 
-// versions of arrays to pass to model
+// Versions of arrays to pass to model
 float f_fruit_loc_x[1] = {-1.0f};
 float f_fruit_loc_y[1] = {-1.0f};
 float f_cell_up[1] = { 0.0f };
@@ -148,6 +152,30 @@ float* softmax(float* ar) {
 	return ar;
 }
 
+void set_expected_values() {
+	expected[0] = 0.0f;
+	expected[1] = 0.0f;
+	expected[2] = 0.0f;
+	expected[3] = 0.0f;
+	// UP, DOWN, LEFT, RIGHT
+	switch (last_dir) {
+	case UP:
+		expected[0] = 1.0f;
+		break;
+	case DOWN:
+		expected[1] = 1.0f;
+		break;
+	case LEFT:
+		expected[2] = 1.0f;
+		break;
+	case RIGHT:
+		expected[3] = 1.0f;
+		break;
+	default:
+		break;
+	}
+}
+
 void init_snake() {
 	snake_body_length[0] = 4;
 	for (int i = 0; i < snake_body_length[0]; i++) {
@@ -169,17 +197,26 @@ void init_snake() {
 	rect.h = GRID_SQUARE_SIZE;
 }
 
+// Used for evolutionary training
 void create_first_generation() {
 	for (int i = 0; i < max_models; i++) {
 		models[i] = create_model(f_fruit_loc_x, f_fruit_loc_y, f_cell_up, f_cell_down, f_cell_left, f_cell_right);
 	}
 }
 
+void disp_prediction(float* prediction) {
+	printf("=========\n");
+	for (int i = 0; i < 4; i++) {
+		printf("%f\n", prediction[i]);
+	}
+	printf("=========\n");
+}
+
 // Runs when program starts
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 	srand(time(NULL));
 	SDL_SetAppMetadata("snake_game", "1.0", "");
-	// Initialize library
+	// initialize library
 	if (!SDL_Init(SDL_INIT_VIDEO)) {
 		return SDL_APP_FAILURE;
 	}
@@ -190,8 +227,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 	// Sets resolution and rendering mode independent of device to renderer
 	SDL_SetRenderLogicalPresentation(renderer, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
+	my_model = create_model(f_fruit_loc_x, f_fruit_loc_y, f_cell_up, f_cell_down, f_cell_left, f_cell_right);
+
 	init_snake();
-	create_first_generation();
+	// Evolutionary training
+	//create_first_generation();
 
 	return SDL_APP_CONTINUE;
 }
@@ -216,6 +256,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 			case SDL_SCANCODE_RIGHT:
 				last_dir = RIGHT;
 				break;
+			case SDL_SCANCODE_F:
+				feed_snake_inputs = !feed_snake_inputs;
 			default:
 				break;
 		}
@@ -223,8 +265,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 	return SDL_APP_CONTINUE;
 }
 
+// Used for evolutionary training
 void create_next_generation() {
-	printf("NEXT GEN\n");
 	int scores[25] = { 0 };
 	// find top 25 performers from current generation
 	for (int i = 0; i < max_models; i++) {
@@ -263,28 +305,37 @@ void create_next_generation() {
 
 	iteration = 0;
 	model_number = 0;
-	printf("GEN MADE\n");
 }
 
 SDL_AppResult SDL_AppIterate(void *appstate) {
+	if (feed_snake_inputs) {
 
-	if (iteration > max_iterations) {
-		model_number++;
-		iteration = 0;
-		init_snake();
 	}
+	else {
 
-	if (model_number >= max_models) {
-		init_snake();
-		create_next_generation();
 	}
+	
+	// Evolutionary training
+	//if (iteration > max_iterations) {
+	//	model_number++;
+	//	iteration = 0;
+	//	init_snake();
+	//}
+	//if (model_number >= max_models) {
+	//	init_snake();
+	//	create_next_generation();
+	//}
 
 	// Set background color and clear
 	SDL_SetRenderDrawColor(renderer, 25, 25, 25, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(renderer);
 	const Uint64 now = SDL_GetTicks();
 	// Update game logic every STEP_SIZE milliseconds
-	while (now - last_update >= STEP_SIZE) {
+	int dif = STEP_SIZE;
+	if (feed_snake_inputs) {
+		dif = 2000;
+	}
+	while (now - last_update >= dif) {
 		// Update float versions of arrays
 		f_fruit_loc_x[0] = ((float)fruit_loc[0] - (float)snake_body[0][0]) / (float)GRID_SIZE_WIDTH;
 		f_fruit_loc_y[0] = ((float)fruit_loc[1] - (float)snake_body[1][0]) / (float)GRID_SIZE_HEIGHT;
@@ -297,28 +348,34 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 		for (int i = 1; i < snake_body_length[0]; i++) {
 			if (snake_body[0][0] == snake_body[0][i] && snake_body[1][0] == snake_body[1][i]) {
 				init_snake();
-				model_number++;
-				iteration = 0;
-				if (model_number >= max_models) {
-					create_next_generation();
-				}
+				// Evolutionary training
+				//model_number++;
+				//iteration = 0;
+				//if (model_number >= max_models) {
+				//	create_next_generation();
+				//}
 			}
 		}
 
-		// run prediction model
-		float* prediction = softmax(predict(models[model_number]));
+		printf("\n====================\n");
+		// Run model
+		float* prediction = softmax(predict(my_model));
+		
+		printf("INITIAL PREDICTION: (%f, %f, %f, %f)", prediction[0], prediction[1], prediction[2], prediction[3]);
+
+		// Evolutionary training
+		// float* prediction = softmax(predict(models[model_number]));
+		// Backpropagation
+		if (feed_snake_inputs) {
+			set_expected_values();
+			my_model = backpropagate_model(my_model, expected, prediction, 0.5f);
+			prediction = softmax(predict(my_model));
+			printf("TRAINED PREDICTION: (%f, %f, %f, %f)", prediction[0], prediction[1], prediction[2], prediction[3]);
+		}
+		// Predict next move
 		last_dir = convert_to_movement(prediction);
 		// Show prediction results
-		//printf("=========\n");
-		//for (int i = 0; i < 4; i++) {
-		//	printf("%f\n", prediction[i]);
-		//}
-		//printf("=========\n");
-		
-		//int up = prediction[0] > 0.5f;
-		//int y = prediction[1] > 0.5f;
-		//printf("%f, %f\n", prediction[0], prediction[1]);
-		//last_dir = convert_to_movement(x, y);
+		//disp_prediction(prediction);
 
 		// Move each snake body part forward
 		for (int i = snake_body_length[0] - 1; i >  0; i--) {
@@ -383,23 +440,38 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 		for (int i = 1; i < snake_body_length[0]; i++) {
 			if (snake_body[0][i] == snake_body[0][0] && snake_body[1][i] == snake_body[1][0]) {
 				init_snake();
-				model_number++;
-				if (model_number >= max_models) {
-					create_next_generation();
-				}
-				iteration = 0;
+				// Evolutionary training
+				//model_number++;
+				//if (model_number >= max_models) {
+				//	create_next_generation();
+				//}
+				//iteration = 0;
 			}
 		}
 		check_fruit();
-		last_update += STEP_SIZE;
+		last_update += dif;
 	}
 
+
 	// Draw snake
-	SDL_SetRenderDrawColor(renderer, 150, 255, 0, SDL_ALPHA_OPAQUE);
+	if (feed_snake_inputs) {
+		SDL_SetRenderDrawColor(renderer, 105, 0, 255, SDL_ALPHA_OPAQUE);
+	}
+	else {
+		// Default green snake
+		SDL_SetRenderDrawColor(renderer, 150, 255, 0, SDL_ALPHA_OPAQUE);
+	}
 	rect.x = snake_body[0][0] * GRID_SQUARE_SIZE;
 	rect.y = snake_body[1][0] * GRID_SQUARE_SIZE;
 	SDL_RenderFillRect(renderer, &rect);
-	SDL_SetRenderDrawColor(renderer, 25, 200, 25, SDL_ALPHA_OPAQUE);
+	if (feed_snake_inputs) {
+		SDL_SetRenderDrawColor(renderer, 230, 55, 230, SDL_ALPHA_OPAQUE);
+	}
+	else {
+		// Default green snake
+		SDL_SetRenderDrawColor(renderer, 25, 200, 25, SDL_ALPHA_OPAQUE);
+	}
+
 	for (int i = 1; i < snake_body_length[0]; i++) {
 		rect.x = snake_body[0][i] * GRID_SQUARE_SIZE;
 		rect.y = snake_body[1][i] * GRID_SQUARE_SIZE;

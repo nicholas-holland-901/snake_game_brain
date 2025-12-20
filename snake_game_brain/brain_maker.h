@@ -6,7 +6,7 @@ typedef struct Neuron {
 	float* weights;
 	int size;
 	float bias;
-	bool output_neuron;
+	bool activation;
 } Neuron;
 
 typedef struct Layer {
@@ -25,5 +25,6 @@ void compute_layer(Layer layer);
 float* predict(Model model);
 Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* cell_up, float* cell_down, float* cell_left, float* cell_right);
 Model mutate_model(Model model);
+Model backpropagate_model(Model model, float* expected, float* output, float eta);
 
 #endif // !BRAIN_MAKER_DOT_H
