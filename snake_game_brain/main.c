@@ -66,6 +66,8 @@ int snake_body_length[1] = { 4 };
 int scx, scy, tx, ty;
 
 float qualities[3] = { 0.0f, 0.0f, 0.0f };
+float distances[3] = { 0.0f, 0.0f, 0.0f };
+int step = 0;
 
 // Versions of arrays to pass to model
 float f_fruit_loc_x[1] = {-1.0f};
@@ -76,9 +78,9 @@ float f_fruit_right[1] = { 0.0f };
 float f_self_infront[1] = { 0.0f };
 float f_self_left[1] = { 0.0f };
 float f_self_right[1] = { 0.0f };
-float f_nothing_infront[1] = { 0.0f };
-float f_nothing_left[1] = { 0.0f };
-float f_nothing_right[1] = { 0.0f };
+float f_dist_infront[1] = { 0.0f };
+float f_dist_left[1] = { 0.0f };
+float f_dist_right[1] = { 0.0f };
 float f_facing_up[1] = { 0.0f };
 float f_facing_down[1] = { 0.0f };
 float f_facing_left[1] = { 0.0f };
@@ -282,12 +284,18 @@ int check_cell(int dir) {
 }
 
 float* softmax(float* ar) {
+	float max = ar[0];
 	float sum = 0.0f;
 	for (int i = 0; i < 3; i++) {
-		sum += exp(ar[i]);
+		if (ar[i] > max) {
+			max = ar[i];
+		}
 	}
 	for (int i = 0; i < 3; i++) {
-		ar[i] = exp(ar[i]) / sum;
+		sum += exp(ar[i] - max);
+	}
+	for (int i = 0; i < 3; i++) {
+		ar[i] = exp(ar[i] - max) / sum;
 	}
 	return ar;
 }
@@ -303,41 +311,32 @@ void update_snake_inputs() {
 
 	f_fruit_infront[0] = 0.0f;
 	f_self_infront[0] = 0.0f;
-	f_nothing_infront[0] = 0.0f;
+	f_dist_infront[0] = 0.0f;
 	if (check_cell(0) == 1) {
 		f_fruit_infront[0] = 1.0f;
 	}
 	else if (check_cell(0) == -1) {
-		f_self_infront[0] = 1.0f;
-	}
-	else {
-		f_nothing_infront[0] = 1.0f;
+		f_self_infront[0] = -1.0f;
 	}
 
 	f_fruit_left[0] = 0.0f;
 	f_self_left[0] = 0.0f;
-	f_nothing_left[0] = 0.0f;
+	f_dist_left[0] = 0.0f;
 	if (check_cell(1) == 1) {
 		f_fruit_left[0] = 1.0f;
 	}
 	else if (check_cell(1) == -1) {
-		f_self_left[0] = 1.0f;
-	}
-	else {
-		f_nothing_left[0] = 1.0f;
+		f_self_left[0] = -1.0f;
 	}
 
 	f_fruit_right[0] = 0.0f;
 	f_self_right[0] = 0.0f;
-	f_nothing_right[0] = 0.0f;
+	f_dist_right[0] = 0.0f;
 	if (check_cell(2) == 1) {
 		f_fruit_right[0] = 1.0f;
 	}
 	else if (check_cell(2) == -1) {
-		f_self_right[0] = 1.0f;
-	}
-	else {
-		f_nothing_right[0] = 1.0f;
+		f_self_right[0] = -1.0f;
 	}
 
 	f_facing_up[0] = 0.0f;
@@ -382,7 +381,7 @@ void init_snake() {
 // Used for evolutionary training
 void create_first_generation() {
 	for (int i = 0; i < max_models; i++) {
-		models[i] = create_model(f_fruit_loc_x, f_fruit_loc_y, f_fruit_infront, f_fruit_left, f_fruit_right, f_self_infront, f_self_left, f_self_right, f_nothing_infront, f_nothing_left, f_nothing_right, f_facing_up, f_facing_down, f_facing_left, f_facing_right);
+		models[i] = create_model(f_fruit_loc_x, f_fruit_loc_y, f_fruit_infront, f_fruit_left, f_fruit_right, f_self_infront, f_self_left, f_self_right, f_dist_infront, f_dist_left, f_dist_right);
 	}
 }
 
@@ -430,21 +429,25 @@ void update_move_qualities() {
 		// See if new location would be closer to fruit
 		if (get_distance_to_fruit(cells[i][0], cells[i][1]) > current_distance_to_fruit) {
 			qualities[i] = 0.2f;
+			distances[i] = -0.9f;
 		}
 		else if (get_distance_to_fruit(cells[i][0], cells[i][1]) < current_distance_to_fruit) {
-			qualities[i] = 1.2f;
+			qualities[i] = 2.0f;
+			distances[i] = 1.0f;
 		}
 		else if (get_distance_to_fruit(cells[i][0], cells[i][1]) == current_distance_to_fruit) {
-			qualities[i] = 0.3f;
+			qualities[i] = 0.5f;
+			distances[i] = 0.1f;
 		}
 		// Check if locations have fruit
 		if (cells[i][0] == fruit_loc[0] && cells[i][1] == fruit_loc[1]) {
-			qualities[i] = 5.0f;
+			qualities[i] = 2.5f;
 		}
 		// Check if collision
 		for (int n = 1; n < snake_body_length[0]; n++) {
 			if (cells[i][0] == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
-				qualities[i] = 0.1f;
+				qualities[i] = -0.1f;
+				distances[i] = -1.0f;
 			}
 		}
 	}
@@ -473,7 +476,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 	// Sets resolution and rendering mode independent of device to renderer
 	SDL_SetRenderLogicalPresentation(renderer, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-	my_model = create_model(f_fruit_loc_x, f_fruit_loc_y, f_fruit_infront, f_fruit_left, f_fruit_right, f_self_infront, f_self_left, f_self_right, f_nothing_infront, f_nothing_left, f_nothing_right, f_facing_up, f_facing_down, f_facing_left, f_facing_right);
+	my_model = create_model(f_fruit_loc_x, f_fruit_loc_y, f_fruit_infront, f_fruit_left, f_fruit_right, f_self_infront, f_self_left, f_self_right, f_dist_infront, f_dist_left, f_dist_right);
 
 	init_snake();
 	// Evolutionary training
@@ -539,7 +542,7 @@ void create_next_generation() {
 	}
 	// create random for some of new generation
 	for (int i = 427; i < max_models; i++) {
-		models[i] = create_model(f_fruit_loc_x, f_fruit_loc_y, f_fruit_infront, f_fruit_left, f_fruit_right, f_self_infront, f_self_left, f_self_right, f_nothing_infront, f_nothing_left, f_nothing_right, f_facing_up, f_facing_down, f_facing_left, f_facing_right);
+		models[i] = create_model(f_fruit_loc_x, f_fruit_loc_y, f_fruit_infront, f_fruit_left, f_fruit_right, f_self_infront, f_self_left, f_self_right, f_dist_infront, f_dist_left, f_dist_right);
 	}
 	for (int i = 0; i < max_models; i++) {
 		body_length_reached[i] = 4;
@@ -567,11 +570,16 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 	// Update game logic every STEP_SIZE milliseconds
 	int dif = STEP_SIZE;
 	if (feed_snake_inputs) {
-		dif = 3;
+		dif = 1;
 	}
 	while (now - last_update >= dif) {
 		// Update float versions of arrays
 		update_snake_inputs();
+		// Calculate quality of each possible move
+		update_move_qualities();
+		f_dist_infront[0] = distances[0];
+		f_dist_left[0] = distances[1];
+		f_dist_right[0] = distances[2];
 		collided = false;
 		eaten_fruit = false;
 		past_distance = get_distance_to_fruit(snake_body[0][0], snake_body[1][0]);
@@ -591,17 +599,14 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 		// printf("\n====================\n");
 		// Run model
 		float* prediction = softmax(predict(my_model));
-
-		// Calculate quality of each possible move
-		update_move_qualities();
 		float* expected = softmax(qualities);
 
 		// Backpropagate model based on quality of last move
-		if (feed_snake_inputs) {
+		if (feed_snake_inputs && step >= 0) {
 			my_model = backpropagate_model(my_model, expected, prediction, 0.1f);
+			// prediction = softmax(predict(my_model));
+			step = 0;
 		}
-
-		prediction = softmax(predict(my_model));
 
 		printf("INITIAL PREDICTION: (%f, %f, %f)\n", prediction[0], prediction[1], prediction[2]);
 
@@ -688,6 +693,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 				//iteration = 0;
 			}
 		}
+		step++;
 		check_fruit();
 		new_distance = get_distance_to_fruit(snake_body[0][0], snake_body[1][0]);
 		last_update += dif;

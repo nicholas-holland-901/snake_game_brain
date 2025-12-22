@@ -30,7 +30,7 @@ float fire_neuron(struct Neuron);
 void compute_layer(struct Layer);
 float* predict(struct Model);
 float clamp(float value, float min, float max);
-Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right, float* facing_up, float* facing_down, float* facing_left, float* facing_right);
+Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right);
 Model mutate_model(struct Model model);
 Model backpropagate_model(Model model, float* expected, float* output, float eta);
 
@@ -133,14 +133,14 @@ Neuron create_neuron(float* data, int size, bool activation, bool input_neuron) 
 	return neuron;
 }
 
-Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right, float* facing_up, float* facing_down, float* facing_left, float* facing_right) {
+Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right) {
 	Model model;
 	model.layers = malloc(4 * sizeof(Layer));
 	model.size = 4;
 	// Create input layer
-	model.layers[0].neurons = malloc(15 * sizeof(Neuron));
-	model.layers[0].output = malloc(15 * sizeof(float));
-	model.layers[0].size = 15;
+	model.layers[0].neurons = malloc(11 * sizeof(Neuron));
+	model.layers[0].output = malloc(11 * sizeof(float));
+	model.layers[0].size = 11;
 	model.layers[0].neurons[0] = create_neuron(fruit_loc_x, 1, false, true);
 	model.layers[0].neurons[1] = create_neuron(fruit_loc_y, 1, false, true);
 	model.layers[0].neurons[2] = create_neuron(fruit_infront, 1, false, true);
@@ -152,17 +152,13 @@ Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront,
 	model.layers[0].neurons[8] = create_neuron(nothing_infront, 1, false, true);
 	model.layers[0].neurons[9] = create_neuron(nothing_left, 1, false, true);
 	model.layers[0].neurons[10] = create_neuron(nothing_right, 1, false, true);
-	model.layers[0].neurons[11] = create_neuron(facing_up, 1, false, true);
-	model.layers[0].neurons[12] = create_neuron(facing_down, 1, false, true);
-	model.layers[0].neurons[13] = create_neuron(facing_left, 1, false, true);
-	model.layers[0].neurons[14] = create_neuron(facing_right, 1, false, true);
 
 	// Create first hidden layer
 	model.layers[1].neurons = malloc(32 * sizeof(Neuron));
 	model.layers[1].output = malloc(32 * sizeof(float));
 	model.layers[1].size = 32;
 	for (int i = 0; i < 32; i++) {
-		model.layers[1].neurons[i] = create_neuron(NULL, 15, true, false);
+		model.layers[1].neurons[i] = create_neuron(NULL, 11, true, false);
 	}
 
 	// Create second hidden layer
@@ -230,10 +226,10 @@ Model backpropagate_model(Model model, float* expected, float* output, float eta
 			// model.layers[2].neurons[i].weights[w] = clamp(model.layers[2].neurons[i].weights[w] - (eta * (detot_dri * dri_dnati * dnati_dwi)), -1.0f, 1.0f);
 			output_weights[(i * model.layers[3].neurons[i].size) + w] = clamp(model.layers[3].neurons[i].weights[w] - (eta * (detot_dri * dri_dnati * dnati_dwi)), -1.0f, 1.0f);
 		}
-		output_total[i] = detot_dri * dri_dnati;
+		output_total[i] = detot_dri;
 		// detot/db = detot/dri * dri/dnati * dnati/db, since it is bias, dnati/db = 1
 		// model.layers[2].neurons[i].bias = clamp(model.layers[2].neurons[i].bias - (eta * detot_dri * dri_dnati), -1.0f, 1.0f);
-		output_bias[i] = clamp(model.layers[3].neurons[i].bias - (eta * detot_dri * dri_dnati), -1.0f, 1.0f);
+		output_bias[i] = clamp(model.layers[3].neurons[i].bias - (eta * detot_dri), -1.0f, 1.0f);
 	}
 
 	// Calculate new weights for second hidden layer (h2)
