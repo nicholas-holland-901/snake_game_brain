@@ -23,7 +23,8 @@ typedef struct Model {
 float fire_neuron(Neuron n);
 void compute_layer(Layer layer);
 float* predict(Model model);
-Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* cell_up, float* cell_down, float* cell_left, float* cell_right);
+float clamp(float value, float min, float max);
+Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right, float* facing_up, float* facing_down, float* facing_left, float* facing_right);
 Model mutate_model(Model model);
 Model backpropagate_model(Model model, float* expected, float* output, float eta);
 
