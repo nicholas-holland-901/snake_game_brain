@@ -81,10 +81,6 @@ float f_self_right[1] = { 0.0f };
 float f_dist_infront[1] = { 0.0f };
 float f_dist_left[1] = { 0.0f };
 float f_dist_right[1] = { 0.0f };
-float f_facing_up[1] = { 0.0f };
-float f_facing_down[1] = { 0.0f };
-float f_facing_left[1] = { 0.0f };
-float f_facing_right[1] = { 1.0f };
 
 void update_snake_cell(int x, int y, int i) {
 	snake_body[0][i] = x;
@@ -202,7 +198,7 @@ int wrap_y(int y) {
 	}
 }
 
-int check_cell(int dir) {
+int check_cell(int dir, int offset) {
 	int cx = snake_body[0][0];
 	int cy = snake_body[1][0];
 
@@ -210,46 +206,46 @@ int check_cell(int dir) {
 	case(0):
 		// FRONT
 		if (last_dir == UP) {
-			cy--;
+			cy - offset;
 		}
 		else if (last_dir == DOWN) {
-			cy++;
+			cy + offset;
 		}
 		else if (last_dir == LEFT) {
-			cx--;
+			cx - offset;
 		}
 		else if (last_dir == RIGHT) {
-			cx++;
+			cx + offset;
 		}
 		break;
 	case(1):
 		// LEFT
 		if (last_dir == UP) {
-			cx--;
+			cx - offset;
 		}
 		else if (last_dir == DOWN) {
-			cx++;
+			cx + offset;
 		}
 		else if (last_dir == LEFT) {
-			cy++;
+			cy + offset;
 		}
 		else if (last_dir == RIGHT) {
-			cy--;
+			cy - offset;
 		}
 		break;
 	case(2):
 		// RIGHT
 		if (last_dir == UP) {
-			cx++;
+			cx + offset;
 		}
 		else if (last_dir == DOWN) {
-			cx--;
+			cx - offset;
 		}
 		else if (last_dir == LEFT) {
-			cy--;
+			cy - offset;
 		}
 		else if (last_dir == RIGHT) {
-			cy++;
+			cy + offset;
 		}
 		break;
 	default:
@@ -310,50 +306,42 @@ void update_snake_inputs() {
 	f_fruit_loc_y[0] = (float)(fruit_loc[1] - (float)snake_body[1][0]) / GRID_SIZE_HEIGHT;
 
 	f_fruit_infront[0] = 0.0f;
-	f_self_infront[0] = 0.0f;
+	f_self_infront[0] = 1.0f;
 	f_dist_infront[0] = 0.0f;
-	if (check_cell(0) == 1) {
+	f_fruit_left[0] = 0.0f;
+	f_self_left[0] = 1.0f;
+	f_dist_left[0] = 0.0f;
+	f_fruit_right[0] = 0.0f;
+	f_self_right[0] = 1.0f;
+	f_dist_right[0] = 0.0f;
+	if (check_cell(0, 1) == 1) {
 		f_fruit_infront[0] = 1.0f;
 	}
-	else if (check_cell(0) == -1) {
-		f_self_infront[0] = -1.0f;
+	for (int i = 1; i < 10; i++) {
+		if (check_cell(0, i) == -1) {
+			f_self_infront[0] = 0.5f + (0.05 * (float)i);
+			break;
+		}
+	}
+	for (int i = 0; i < 10; i++) {
+		if (check_cell(1, i) == -1) {
+			f_self_left[0] = 0.5f + (0.05 * (float)i);
+			break;
+		}
+	}
+	for (int i = 0; i < 10; i++) {
+		if (check_cell(2, i) == -1) {
+			f_self_right[0] = 0.5f + (0.05 * (float)i);
+			break;
+		}
 	}
 
-	f_fruit_left[0] = 0.0f;
-	f_self_left[0] = 0.0f;
-	f_dist_left[0] = 0.0f;
-	if (check_cell(1) == 1) {
+	if (check_cell(1, 1) == 1) {
 		f_fruit_left[0] = 1.0f;
 	}
-	else if (check_cell(1) == -1) {
-		f_self_left[0] = -1.0f;
-	}
 
-	f_fruit_right[0] = 0.0f;
-	f_self_right[0] = 0.0f;
-	f_dist_right[0] = 0.0f;
-	if (check_cell(2) == 1) {
+	if (check_cell(2, 1) == 1) {
 		f_fruit_right[0] = 1.0f;
-	}
-	else if (check_cell(2) == -1) {
-		f_self_right[0] = -1.0f;
-	}
-
-	f_facing_up[0] = 0.0f;
-	f_facing_down[0] = 0.0f;
-	f_facing_left[0] = 0.0f;
-	f_facing_right[0] = 0.0f;
-	if (last_dir == UP) {
-		f_facing_up[0] = 1.0f;
-	}
-	else if (last_dir == DOWN) {
-		f_facing_down[0] = 1.0f;
-	}
-	else if (last_dir == LEFT) {
-		f_facing_left[0] = 1.0f;
-	}
-	else if (last_dir == RIGHT) {
-		f_facing_right[0] = 1.0f;
 	}
 }
 
@@ -446,7 +434,7 @@ void update_move_qualities() {
 		// Check if collision
 		for (int n = 1; n < snake_body_length[0]; n++) {
 			if (cells[i][0] == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
-				qualities[i] = -0.1f;
+				qualities[i] = -0.2f;
 				distances[i] = -1.0f;
 			}
 		}
@@ -455,7 +443,7 @@ void update_move_qualities() {
 
 void disp_prediction(float* prediction) {
 	printf("=========\n");
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < 3; i++) {
 		printf("%f\n", prediction[i]);
 	}
 	printf("=========\n");
@@ -608,7 +596,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 			step = 0;
 		}
 
-		printf("INITIAL PREDICTION: (%f, %f, %f)\n", prediction[0], prediction[1], prediction[2]);
+		// printf("INITIAL PREDICTION: (%f, %f, %f)\n", prediction[0], prediction[1], prediction[2]);
 
 		// Evolutionary training
 		// float* prediction = softmax(predict(models[model_number]));
