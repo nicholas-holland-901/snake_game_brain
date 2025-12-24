@@ -27,12 +27,6 @@ enum mov_dir {
 	RIGHT
 } MovDir;
 
-enum rel_mov_dir {
-	REL_STRAIGHT,
-	REL_LEFT,
-	REL_RIGHT
-} RelMovDir;
-
 enum MovDir last_dir = RIGHT;
 enum MovDir last_move_dir = RIGHT;
 
@@ -67,7 +61,6 @@ int scx, scy, tx, ty;
 
 float qualities[3] = { 0.0f, 0.0f, 0.0f };
 float distances[3] = { 0.0f, 0.0f, 0.0f };
-int step = 0;
 
 // Versions of arrays to pass to model
 float f_fruit_loc_x[1] = {-1.0f};
@@ -317,23 +310,14 @@ void update_snake_inputs() {
 	if (check_cell(0, 1) == 1) {
 		f_fruit_infront[0] = 1.0f;
 	}
-	for (int i = 1; i < 10; i++) {
-		if (check_cell(0, i) == -1) {
-			f_self_infront[0] = 0.5f + (0.05 * (float)i);
-			break;
-		}
+	if (check_cell(0, 1) == -1) {
+		f_self_infront[0] = -1.0f;
 	}
-	for (int i = 0; i < 10; i++) {
-		if (check_cell(1, i) == -1) {
-			f_self_left[0] = 0.5f + (0.05 * (float)i);
-			break;
-		}
+	if (check_cell(1, 1) == -1) {
+		f_self_left[0] = -1.0f;
 	}
-	for (int i = 0; i < 10; i++) {
-		if (check_cell(2, i) == -1) {
-			f_self_right[0] = 0.5f + (0.05 * (float)i);
-			break;
-		}
+	if (check_cell(2, 1) == -1) {
+		f_self_right[0] = -1.0f;
 	}
 
 	if (check_cell(1, 1) == 1) {
@@ -417,7 +401,7 @@ void update_move_qualities() {
 		// See if new location would be closer to fruit
 		if (get_distance_to_fruit(cells[i][0], cells[i][1]) > current_distance_to_fruit) {
 			qualities[i] = 0.2f;
-			distances[i] = -0.9f;
+			distances[i] = -0.8f;
 		}
 		else if (get_distance_to_fruit(cells[i][0], cells[i][1]) < current_distance_to_fruit) {
 			qualities[i] = 2.0f;
@@ -432,11 +416,31 @@ void update_move_qualities() {
 			qualities[i] = 2.5f;
 		}
 		// Check if collision
+		int num_x = 0;
+		int num_y = 0;
 		for (int n = 1; n < snake_body_length[0]; n++) {
 			if (cells[i][0] == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
-				qualities[i] = -0.2f;
-				distances[i] = -1.0f;
+				qualities[i] = -2.5f; // -0.2f;
+				distances[i] = -2.5f;
 			}
+			// Check if square is surrounded by two snake pieces on either side (high chance of getting stuck in self loop)
+			if (cells[i][0] + 1 == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
+				num_x++;
+			}
+			if (cells[i][0] - 1 == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
+				num_x++;
+			}
+			if (cells[i][0] == snake_body[0][n] && cells[i][1] + 1 == snake_body[1][n]) {
+				num_y++;
+			}
+			if (cells[i][0] == snake_body[0][n] && cells[i][1] - 1 == snake_body[1][n]) {
+				num_y++;
+			}
+		}
+		if (num_x == 2 || num_y == 2) {
+			// High chance of getting stuck if follow path
+			qualities[i] = -2.5f;
+			distances[i] = -2.5f;
 		}
 	}
 }
@@ -511,7 +515,8 @@ void create_next_generation() {
 			if (body_length_reached[i] > scores[k]) {
 				scores[k] = body_length_reached[i];
 				tops[k] = models[i];
-				printf("(%d)\n", body_length_reached[i]);
+				// Print snake length reached
+				printf("%d\n", body_length_reached[i]);
 				break;
 			}
 		}
@@ -584,26 +589,19 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 			}
 		}
 
-		// printf("\n====================\n");
 		// Run model
 		float* prediction = softmax(predict(my_model));
 		float* expected = softmax(qualities);
 
 		// Backpropagate model based on quality of last move
-		if (feed_snake_inputs && step >= 0) {
+		if (feed_snake_inputs) {
 			my_model = backpropagate_model(my_model, expected, prediction, 0.1f);
-			// prediction = softmax(predict(my_model));
-			step = 0;
+			prediction = softmax(predict(my_model));
 		}
-
-		// printf("INITIAL PREDICTION: (%f, %f, %f)\n", prediction[0], prediction[1], prediction[2]);
 
 		// Evolutionary training
 		// float* prediction = softmax(predict(models[model_number]));
-		// Backpropagation
-		if (feed_snake_inputs) {
-			// printf("TRAINED PREDICTION: (%f, %f, %f)", prediction[0], prediction[1], prediction[2]);
-		}
+		
 		// Predict next move
 		last_dir = convert_to_movement(prediction);
 		// Show prediction results
@@ -671,6 +669,8 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 		// Check for collision after move
 		for (int i = 1; i < snake_body_length[0]; i++) {
 			if (snake_body[0][i] == snake_body[0][0] && snake_body[1][i] == snake_body[1][0]) {
+				// Print snake length reached
+				printf("%d\n", snake_body_length[0]);
 				init_snake();
 				collided = true;
 				// Evolutionary training
@@ -681,7 +681,6 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 				//iteration = 0;
 			}
 		}
-		step++;
 		check_fruit();
 		new_distance = get_distance_to_fruit(snake_body[0][0], snake_body[1][0]);
 		last_update += dif;

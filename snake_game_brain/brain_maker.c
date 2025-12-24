@@ -1,7 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <math.h>
 #include <stdbool.h>
 
 # define RAND_WEIGHT() (((rand() % 100) / 500.0f) - 0.2f)
@@ -29,37 +27,41 @@ typedef struct Model {
 float fire_neuron(struct Neuron);
 void compute_layer(struct Layer);
 float* predict(struct Model);
-float clamp(float value, float min, float max);
-Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right);
+Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* f_dist_infront, float* f_dist_left, float* f_dist_right);
 Model mutate_model(struct Model model);
 Model backpropagate_model(Model model, float* expected, float* output, float eta);
 
 /*
-Structure
+Structure Plan
 ---------
 Input layer:
-6 Neurons:
-(normalized to be between -1 and 1)
-a) distance to fruit_x 
-b) distance to fruit_y
-stats about 4 cells around head (0 = empty, -1 = body, 1 = fruit)
-c) CELL UP
-d) CELL DOWN
-e) CELL LEFT
-f) CELL RIGHT
+11 Neurons:
+
+1) distance to fruit x
+2) distance to fruit y
+3) is there fruit infront
+4) is there fruit left
+5) is there fruit right
+6) is self infront
+7) is self left
+8) is self right
+9) distance to fruit from infront
+10) distance to fruit from left
+11) distance to fruit from right
 
 First Hidden Layer:
-6 Neurons
-Inputs: 6 values
+32 Neurons
+Inputs: 11 values
 
 Second Hidden Layer
-6 Neurons
-Inputs: 6 values
+32 Neurons
+Inputs: 32 values
 
 Output Layer:
 3 Neurons:
-Inputs: 3 values
+Inputs: 32 values
 Each neuron represents a direction: STRAIGHT, LEFT, RIGHT
+Outputs move predicted move quality of each direction, take highest value as action
 
 */
 
@@ -70,8 +72,6 @@ float fire_neuron(Neuron n) {
 	}
 	sum += n.bias;
 	if (n.activation) {
-		// sigmoid activation function if not output neuron
-		// return 1.0 / (1.0 + exp(-sum));
 		// leaky relu activation function
 		if (sum < 0) {
 			return sum * 0.01f;
@@ -84,12 +84,6 @@ float fire_neuron(Neuron n) {
 		// return raw value for softmax activation function on output layer to keep sum of move probabilities equal to 1
 		return sum;
 	}
-}
-
-float clamp(float value, float min, float max) {
-	//value = fmaxf(value, min);
-	//value = fminf(value, max);
-	return value;
 }
 
 void compute_layer(Layer layer) {
@@ -133,7 +127,7 @@ Neuron create_neuron(float* data, int size, bool activation, bool input_neuron) 
 	return neuron;
 }
 
-Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* nothing_infront, float* nothing_left, float* nothing_right) {
+Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront, float* fruit_left, float* fruit_right, float* self_infront, float* self_left, float* self_right, float* f_dist_infront, float* f_dist_left, float* f_dist_right) {
 	Model model;
 	model.layers = malloc(4 * sizeof(Layer));
 	model.size = 4;
@@ -149,9 +143,9 @@ Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront,
 	model.layers[0].neurons[5] = create_neuron(self_infront, 1, false, true);
 	model.layers[0].neurons[6] = create_neuron(self_left, 1, false, true);
 	model.layers[0].neurons[7] = create_neuron(self_right, 1, false, true);
-	model.layers[0].neurons[8] = create_neuron(nothing_infront, 1, false, true);
-	model.layers[0].neurons[9] = create_neuron(nothing_left, 1, false, true);
-	model.layers[0].neurons[10] = create_neuron(nothing_right, 1, false, true);
+	model.layers[0].neurons[8] = create_neuron(f_dist_infront, 1, false, true);
+	model.layers[0].neurons[9] = create_neuron(f_dist_left, 1, false, true);
+	model.layers[0].neurons[10] = create_neuron(f_dist_right, 1, false, true);
 
 	// Create first hidden layer
 	model.layers[1].neurons = malloc(32 * sizeof(Neuron));
@@ -162,10 +156,10 @@ Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront,
 	}
 
 	// Create second hidden layer
-	model.layers[2].neurons = malloc(16 * sizeof(Neuron));
-	model.layers[2].output = malloc(16 * sizeof(float));
-	model.layers[2].size = 16;
-	for (int i = 0; i < 16; i++) {
+	model.layers[2].neurons = malloc(32 * sizeof(Neuron));
+	model.layers[2].output = malloc(32 * sizeof(float));
+	model.layers[2].size = 32;
+	for (int i = 0; i < 32; i++) {
 		model.layers[2].neurons[i] = create_neuron(NULL, 32, true, false);
 	}
 
@@ -173,9 +167,9 @@ Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront,
 	model.layers[3].neurons = malloc(3 * sizeof(Neuron));
 	model.layers[3].output = malloc(3 * sizeof(float));
 	model.layers[3].size = 3;
-	model.layers[3].neurons[0] = create_neuron(NULL, 16, false, false);
-	model.layers[3].neurons[1] = create_neuron(NULL, 16, false, false);
-	model.layers[3].neurons[2] = create_neuron(NULL, 16, false, false);
+	model.layers[3].neurons[0] = create_neuron(NULL, 32, false, false);
+	model.layers[3].neurons[1] = create_neuron(NULL, 32, false, false);
+	model.layers[3].neurons[2] = create_neuron(NULL, 32, false, false);
 	return model;
 }
 
@@ -217,19 +211,19 @@ Model backpropagate_model(Model model, float* expected, float* output, float eta
 		// detot/dwi = detot/dri * dri/dnati * dnati/dwi
 		// detot/dri = ri - ri^
 		float detot_dri = output[i] - expected[i];
-		// dri/dnati = ri(1-ri)
+		// dri/dnati = 1.0f
 		float dri_dnati = 1.0f;
 		for (int w = 0; w < model.layers[3].neurons[i].size; w++) {
 			// dnati/dwi = ri from previous layer
 			float dnati_dwi = model.layers[3].neurons[i].data[w];
 			// wi+ = wi - eta(detot/dwi)
-			// model.layers[2].neurons[i].weights[w] = clamp(model.layers[2].neurons[i].weights[w] - (eta * (detot_dri * dri_dnati * dnati_dwi)), -1.0f, 1.0f);
-			output_weights[(i * model.layers[3].neurons[i].size) + w] = clamp(model.layers[3].neurons[i].weights[w] - (eta * (detot_dri * dri_dnati * dnati_dwi)), -1.0f, 1.0f);
+			// model.layers[2].neurons[i].weights[w] -= (eta * (detot_dri * dri_dnati * dnati_dwi)), -1.0f, 1.0f);
+			output_weights[(i * model.layers[3].neurons[i].size) + w] = model.layers[3].neurons[i].weights[w] - (eta * (detot_dri * dri_dnati * dnati_dwi));
 		}
 		output_total[i] = detot_dri;
 		// detot/db = detot/dri * dri/dnati * dnati/db, since it is bias, dnati/db = 1
-		// model.layers[2].neurons[i].bias = clamp(model.layers[2].neurons[i].bias - (eta * detot_dri * dri_dnati), -1.0f, 1.0f);
-		output_bias[i] = clamp(model.layers[3].neurons[i].bias - (eta * detot_dri), -1.0f, 1.0f);
+		// model.layers[2].neurons[i].bias -= (eta * detot_dri * dri_dnati), -1.0f, 1.0f);
+		output_bias[i] = model.layers[3].neurons[i].bias - (eta * detot_dri);
 	}
 
 	// Calculate new weights for second hidden layer (h2)
@@ -247,13 +241,13 @@ Model backpropagate_model(Model model, float* expected, float* output, float eta
 			// dnatlhi/dwlhi = ri from previous layer (input layer)
 			float dnatlhi_dwlhi = model.layers[2].neurons[i].data[w];
 			// wi+ = wi - eta(detot/dwlhi)
-			// model.layers[2].neurons[i].weights[w] = clamp(model.layers[2].neurons[i].weights[w] - (eta * (detot_drlhi * drlhi_dnatlhi * dnatlhi_dwlhi)), -1.0f, 1.0f);
-			h2_weights[(i * model.layers[2].neurons[i].size) + w] = clamp(model.layers[2].neurons[i].weights[w] - (eta * (tot * drlhi_dnatlhi * dnatlhi_dwlhi)), -1.0f, 1.0f);
+			// model.layers[2].neurons[i].weights[w] -= (eta * (detot_drlhi * drlhi_dnatlhi * dnatlhi_dwlhi)), -1.0f, 1.0f);
+			h2_weights[(i * model.layers[2].neurons[i].size) + w] = model.layers[2].neurons[i].weights[w] - (eta * (tot * drlhi_dnatlhi * dnatlhi_dwlhi));
 		}
 		h2_total[i] = tot * drlhi_dnatlhi;
 		// detot/db = detot/drlhi * drlhi/dnatlhi * dnatlhi/dblhi, again, since it is bias, dnatlhi/dblhi = 1
-		// model.layers[2].neurons[i].bias = clamp(model.layers[2].neurons[i].bias - (eta * detot_drlhi * drlhi_dnatlhi), -1.0f, 1.0f);
-		h2_bias[i] = clamp(model.layers[2].neurons[i].bias - (eta * h2_total[i]), -1.0f, 1.0f);
+		// model.layers[2].neurons[i].bias -= (eta * detot_drlhi * drlhi_dnatlhi), -1.0f, 1.0f);
+		h2_bias[i] = model.layers[2].neurons[i].bias - (eta * h2_total[i]);
 	}
 
 	// Calculate new weights for first hidden layer (h1)
@@ -271,12 +265,12 @@ Model backpropagate_model(Model model, float* expected, float* output, float eta
 			// dnatlhi/dwlhi = ri from previous layer (input layer)
 			float dnatlhi_dwlhi = model.layers[1].neurons[i].data[w];
 			// wi+ = wi - eta(detot/dwlhi)
-			// model.layers[1].neurons[i].weights[w] = clamp(model.layers[1].neurons[i].weights[w] - (eta * (detot_drlhi * drlhi_dnatlhi * dnatlhi_dwlhi)), -1.0f, 1.0f);
-			h1_weights[(i * model.layers[1].neurons[i].size) + w] = clamp(model.layers[1].neurons[i].weights[w] - (eta * (h2_sum * drlhi_dnatlhi * dnatlhi_dwlhi)), -1.0f, 1.0f);
+			// model.layers[1].neurons[i].weights[w] -= (eta * (detot_drlhi * drlhi_dnatlhi * dnatlhi_dwlhi)), -1.0f, 1.0f);
+			h1_weights[(i * model.layers[1].neurons[i].size) + w] = model.layers[1].neurons[i].weights[w] - (eta * (h2_sum * drlhi_dnatlhi * dnatlhi_dwlhi));
 		}
 		// detot/db = detot/drlhi * drlhi/dnatlhi * dnatlhi/dblhi, again, since it is bias, dnatlhi/dblhi = 1
-		// model.layers[1].neurons[i].bias = clamp(model.layers[1].neurons[i].bias - (eta * detot_drlhi * drlhi_dnatlhi), -1.0f, 1.0f);
-		h1_bias[i] = clamp(model.layers[1].neurons[i].bias - (eta * h2_sum * drlhi_dnatlhi), -1.0f, 1.0f);
+		// model.layers[1].neurons[i].bias -= (eta * detot_drlhi * drlhi_dnatlhi), -1.0f, 1.0f);
+		h1_bias[i] = model.layers[1].neurons[i].bias - (eta * h2_sum * drlhi_dnatlhi);
 	}
 
 	// Update output layer
