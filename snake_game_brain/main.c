@@ -297,7 +297,6 @@ float get_distance_to_fruit(int x, int y) {
 void update_snake_inputs() {
 	f_fruit_loc_x[0] = (float)(fruit_loc[0] - (float)snake_body[0][0]) / GRID_SIZE_WIDTH;
 	f_fruit_loc_y[0] = (float)(fruit_loc[1] - (float)snake_body[1][0]) / GRID_SIZE_HEIGHT;
-
 	f_fruit_infront[0] = 0.0f;
 	f_self_infront[0] = 1.0f;
 	f_dist_infront[0] = 0.0f;
@@ -420,8 +419,8 @@ void update_move_qualities() {
 		int num_y = 0;
 		for (int n = 1; n < snake_body_length[0]; n++) {
 			if (cells[i][0] == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
-				qualities[i] = -2.5f; // -0.2f;
-				distances[i] = -2.5f;
+				qualities[i] = -3.5f; // -0.2f;
+				distances[i] = -3.5f;
 			}
 			// Check if square is surrounded by two snake pieces on either side (high chance of getting stuck in self loop)
 			if (cells[i][0] + 1 == snake_body[0][n] && cells[i][1] == snake_body[1][n]) {
@@ -439,8 +438,8 @@ void update_move_qualities() {
 		}
 		if (num_x == 2 || num_y == 2) {
 			// High chance of getting stuck if follow path
-			qualities[i] = -2.5f;
-			distances[i] = -2.5f;
+			qualities[i] = -3.5f;
+			distances[i] = -3.5f;
 		}
 	}
 }
@@ -472,7 +471,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
 	init_snake();
 	// Evolutionary training
-	//create_first_generation();
+	// create_first_generation();
 
 	return SDL_APP_CONTINUE;
 }
@@ -600,10 +599,13 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 		}
 
 		// Evolutionary training
-		// float* prediction = softmax(predict(models[model_number]));
+		//if (feed_snake_inputs) {
+		//	models[model_number] = backpropagate_model(models[model_number], expected, prediction, 0.1f);
+		//	prediction = softmax(predict(models[model_number]));
+		//}
 		
-		// Predict next move
-		last_dir = convert_to_movement(prediction);
+		// Predict next move (overrides user input)
+		last_dir = convert_to_movement(prediction); // Comment line to enable user control
 		// Show prediction results
 		//disp_prediction(prediction);
 
@@ -678,7 +680,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 				//if (model_number >= max_models) {
 				//	create_next_generation();
 				//}
-				//iteration = 0;
+				iteration = 0;
 			}
 		}
 		check_fruit();

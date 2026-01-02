@@ -11,6 +11,7 @@ typedef struct Neuron {
 	int size;
 	float bias;
 	bool activation;
+
 } Neuron;
 
 typedef struct Layer {
@@ -176,7 +177,7 @@ Model create_model(float* fruit_loc_x, float* fruit_loc_y, float* fruit_infront,
 // Slightly change weights of model for use in evolutionary training
 Model mutate_model(Model model) {
 	Model temp = model;
-	for (int i = 0; i < model.size; i++) {
+	for (int i = 1; i < model.size; i++) {
 		for (int j = 0; j < model.layers[i].size; j++) {
 			for (int k = 0; k < model.layers[i].neurons[j].size; k++) {
 				if (MUT_CHANCE()) {
@@ -204,7 +205,6 @@ Model backpropagate_model(Model model, float* expected, float* output, float eta
 
 	float* h1_weights = malloc(model.layers[1].size * model.layers[1].neurons[0].size * sizeof(float));
 	float* h1_bias = malloc(model.layers[1].size * sizeof(float));
-
 
 	// Calculate new weights for output layer
 	for (int i = 0; i < model.layers[3].size; i++) {
